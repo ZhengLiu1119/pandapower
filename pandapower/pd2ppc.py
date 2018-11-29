@@ -208,7 +208,8 @@ def _ppc2ppci(ppc, ppci, net):
     # update gen lookups
     _is_elements = net["_is_elements"]
     eg_end = np.sum(_is_elements['ext_grid'])
-    gen_end = eg_end + np.sum(net['gen']['in_service'].values)
+    gen_end = eg_end + np.sum(_is_elements['gen'])
+#    gen_end = eg_end + np.sum(net['gen']['in_service'].values)
     sgen_end = len(_is_elements["sgen_controllable"]) + gen_end if "sgen_controllable" in _is_elements else gen_end
     load_end = len(_is_elements["load_controllable"]) + sgen_end if "load_controllable" in _is_elements else sgen_end
     storage_end = len(_is_elements["storage_controllable"]) + load_end if "storage_controllable" in _is_elements else load_end
