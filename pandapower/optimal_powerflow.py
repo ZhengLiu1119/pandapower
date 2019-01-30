@@ -5,17 +5,18 @@
 
 
 import warnings
+from sys import stdout
 
 from pypower.add_userfcn import add_userfcn
 from pypower.ppoption import ppoption
 from scipy.sparse import csr_matrix as sparse
 
-from pandapower.auxiliary import ppException, _clean_up
+from pandapower.auxiliary import ppException, _clean_up, _add_auxiliary_elements
 from pandapower.idx_bus import VM
 from pandapower.opf.opf import opf
+from pandapower.opf.printpf import printpf
 from pandapower.pd2ppc import _pd2ppc
 from pandapower.pf.run_newton_raphson_pf import _run_newton_raphson_pf
-from pandapower.powerflow import _add_auxiliary_elements
 from pandapower.results import _copy_results_ppci_to_ppc, reset_results, \
     _extract_results
 
@@ -54,6 +55,16 @@ def _optimal_powerflow(net, verbose, suppress_warnings, **kwargs):
         result = opf(ppci, ppopt)
 #    net["_ppc_opf"] = result
 
+    if verbose:
+        ppopt['OUT_ALL'] = 1
+        printpf(baseMVA=result["baseMVA"], bus=result["bus"], gen=result["gen"], fd=stdout,
+                branch=result["branch"],  success=result["success"], et=result["et"], ppopt=ppopt)
+
+    if verbose:
+        ppopt['OUT_ALL'] = 1
+        printpf(baseMVA=result["baseMVA"], bus=result["bus"], gen=result["gen"], fd=stdout,
+                branch=result["branch"],  success=result["success"], et=result["et"], ppopt=ppopt)
+
     if not result["success"]:
         raise OPFNotConverged("Optimal Power Flow did not converge!")
 
@@ -82,11 +93,11 @@ def _add_dcline_constraints(om, net):
                                                      net.dcline.loss_percent.values,
                                                      net.dcline.in_service.values)):
             if active:
-                Adc[i, gen_lookup[f]] = 1. + loss * 1e-2
+                Adc[i, gen_lookup[f]] = 1. + loss / 100
                 Adc[i, gen_lookup[t]] = 1.
 
         ## constraints
-        nL0 = -net.dcline.loss_kw.values * 1e-3  # absolute losses
+        nL0 = -net.dcline.loss_mw.values # absolute losses
         #    L1  = -net.dcline.loss_percent.values * 1e-2 #relative losses
         #    Adc = sparse(hstack([zeros((ndc, ng)), diag(1-L1), eye(ndc)]))
 
@@ -96,7 +107,7 @@ def _add_dcline_constraints(om, net):
 
 def _run_pf_before_opf(net, ppci):
 #    net._options["numba"] = True
-    net._options["tolerance_kva"] = 1e-5
+    net._options["tolerance_mva"] = 1e-8
     net._options["max_iteration"] = 10
     net._options["algorithm"] = "nr"
     return _run_newton_raphson_pf(ppci, net["_options"])

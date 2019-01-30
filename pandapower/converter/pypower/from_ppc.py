@@ -43,13 +43,13 @@ def _create_costs(net, ppc, gen_lookup, type, idx):
         if ncost == 2:
             cp2 = 0
             cp1 = ppc['gencost'][idx, COST]
-            cp0 = ppc['gencost'][idx, COST + 1] * 1e-3
+            cp0 = ppc['gencost'][idx, COST + 1]
         elif ncost == 3:
-            cp2 = ppc['gencost'][idx, COST] * 1e-6
-            cp1 = ppc['gencost'][idx, COST + 1] * 1e-3
+            cp2 = ppc['gencost'][idx, COST]
+            cp1 = ppc['gencost'][idx, COST + 1]
             cp0 = ppc['gencost'][idx, COST + 2]
         pp.create_poly_cost(net, gen_lookup.element.at[idx], gen_lookup.element_type.at[idx],
-                                  cp1_eur_per_kw=cp1, cp2_eur_per_kw2=cp2, cp0_eur=cp0)
+                                  cp1_eur_per_mw=cp1, cp2_eur_per_mw2=cp2, cp0_eur=cp0)
     else:
         logger.info("Cost mode of gencost line %s is unknown." % idx)
 
@@ -113,7 +113,7 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
     omega = pi * f_hz  # 1/s
     MAX_VAL = 99999.
 
-    net = pp.create_empty_network(f_hz=f_hz, sn_kva=baseMVA*1e3)
+    net = pp.create_empty_network(f_hz=f_hz, sn_mva=baseMVA)
 
     # --- bus data -> create buses, sgen, load, shunt
     for i in range(len(ppc['bus'])):
@@ -123,18 +123,18 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
                       max_vm_pu=ppc['bus'][i, 11], min_vm_pu=ppc['bus'][i, 12])
         # create sgen, load
         if ppc['bus'][i, 2] > 0:
-            pp.create_load(net, i, p_kw=ppc['bus'][i, 2] * 1e3, q_kvar=ppc['bus'][i, 3] * 1e3,
+            pp.create_load(net, i, p_mw=ppc['bus'][i, 2], q_mvar=ppc['bus'][i, 3],
                            controllable=False)
         elif ppc['bus'][i, 2] < 0:
-            pp.create_sgen(net, i, p_kw=-ppc['bus'][i, 2] * 1e3, q_kvar=-ppc['bus'][i, 3] * 1e3,
+            pp.create_sgen(net, i, p_mw=-ppc['bus'][i, 2], q_mvar=-ppc['bus'][i, 3],
                            type="", controllable=False)
         elif ppc['bus'][i, 3] != 0:
-            pp.create_load(net, i, p_kw=ppc['bus'][i, 2] * 1e3, q_kvar=ppc['bus'][i, 3] * 1e3,
+            pp.create_load(net, i, p_mw=ppc['bus'][i, 2], q_mvar=ppc['bus'][i, 3],
                            controllable=False)
         # create shunt
         if ppc['bus'][i, 4] != 0 or ppc['bus'][i, 5] != 0:
-            pp.create_shunt(net, i, p_kw=ppc['bus'][i, 4] * 1e3,
-                            q_kvar=-ppc['bus'][i, 5] * 1e3)
+            pp.create_shunt(net, i, p_mw=ppc['bus'][i, 4],
+                            q_mvar=-ppc['bus'][i, 5])
     # unused data of ppc: Vm, Va (partwise: in ext_grid), zone
 
     # --- gen data -> create ext_grid, gen, sgen
@@ -152,13 +152,13 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
                 gen_lookup.element.loc[i] = pp.create_ext_grid(
                     net, bus=current_bus_idx, vm_pu=ppc['gen'][last_same_bus_in_service_gen_idx, 5],
                     va_degree=ppc['bus'][current_bus_idx, 8], in_service=bool(ppc['gen'][i, 7] > 0),
-                    max_p_kw=ppc['gen'][i, PMAX] * 1e3, min_p_kw=ppc['gen'][i, PMIN] * 1e3,
-                    max_q_kvar=ppc['gen'][i, QMAX] * 1e3, min_q_kvar=ppc['gen'][i, QMIN] * 1e3)
+                    max_p_mw=ppc['gen'][i, PMAX], min_p_mw=ppc['gen'][i, PMIN],
+                    max_q_mvar=ppc['gen'][i, QMAX], min_q_mvar=ppc['gen'][i, QMIN])
                 gen_lookup.element_type.loc[i] = 'ext_grid'
                 if ppc['gen'][i, 4] > ppc['gen'][i, 3]:
-                    logger.info('min_q_kvar of gen %d must be less than max_q_kvar but is not.' % i)
+                    logger.info('min_q_mvar of gen %d must be less than max_q_mvar but is not.' % i)
                 if -ppc['gen'][i, 9] < -ppc['gen'][i, 8]:
-                    logger.info('max_p_kw of gen %d must be less than min_p_kw but is not.' % i)
+                    logger.info('max_p_mw of gen %d must be less than min_p_mw but is not.' % i)
             else:
                 current_bus_type = 1
         # create gen
@@ -166,34 +166,34 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
             if i == first_same_bus_in_service_gen_idx:
                 gen_lookup.element.loc[i] = pp.create_gen(
                     net, bus=current_bus_idx, vm_pu=ppc['gen'][last_same_bus_in_service_gen_idx, 5],
-                    p_kw=ppc['gen'][i, 1] * 1e3,
+                    p_mw=ppc['gen'][i, 1],
                     in_service=bool(ppc['gen'][i, 7] > 0), controllable=True,
-                    max_p_kw=ppc['gen'][i, PMAX] * 1e3, min_p_kw=ppc['gen'][i, PMIN] * 1e3,
-                    max_q_kvar=ppc['gen'][i, QMAX] * 1e3, min_q_kvar=ppc['gen'][i, QMIN] * 1e3)
+                    max_p_mw=ppc['gen'][i, PMAX], min_p_mw=ppc['gen'][i, PMIN],
+                    max_q_mvar=ppc['gen'][i, QMAX], min_q_mvar=ppc['gen'][i, QMIN])
                 gen_lookup.element_type.loc[i] = 'gen'
                 if ppc['gen'][i, 1] < 0:
-                    logger.info('p_kw of gen %d must be less than zero but is not.' % i)
+                    logger.info('p_mw of gen %d must be less than zero but is not.' % i)
                 if ppc['gen'][i, 4] > ppc['gen'][i, 3]:
-                    logger.info('min_q_kvar of gen %d must be less than max_q_kvar but is not.' % i)
+                    logger.info('min_q_mvar of gen %d must be less than max_q_mvar but is not.' % i)
                 if -ppc['gen'][i, 9] < -ppc['gen'][i, 8]:
-                    logger.info('max_p_kw of gen %d must be less than min_p_kw but is not.' % i)
+                    logger.info('max_p_mw of gen %d must be less than min_p_mw but is not.' % i)
             else:
                 current_bus_type = 1
         # create sgen
         if current_bus_type == 1:
             gen_lookup.element.loc[i] = pp.create_sgen(
-                net, bus=current_bus_idx, p_kw=ppc['gen'][i, 1] * 1e3,
-                q_kvar=ppc['gen'][i, 2] * 1e3, type="", in_service=bool(ppc['gen'][i, 7] > 0),
-                max_p_kw=ppc['gen'][i, PMAX] * 1e3, min_p_kw=ppc['gen'][i, PMIN] * 1e3,
-                max_q_kvar=ppc['gen'][i, QMAX] * 1e3, min_q_kvar=ppc['gen'][i, QMIN] * 1e3,
+                net, bus=current_bus_idx, p_mw=ppc['gen'][i, 1],
+                q_mvar=ppc['gen'][i, 2], type="", in_service=bool(ppc['gen'][i, 7] > 0),
+                max_p_mw=ppc['gen'][i, PMAX], min_p_mw=ppc['gen'][i, PMIN],
+                max_q_mvar=ppc['gen'][i, QMAX], min_q_mvar=ppc['gen'][i, QMIN],
                 controllable=True)
             gen_lookup.element_type.loc[i] = 'sgen'
             if ppc['gen'][i, 1] < 0:
-                logger.info('p_kw of sgen %d must be less than zero but is not.' % i)
+                logger.info('p_mw of sgen %d must be less than zero but is not.' % i)
             if ppc['gen'][i, 4] > ppc['gen'][i, 3]:
-                logger.info('min_q_kvar of gen %d must be less than max_q_kvar but is not.' % i)
+                logger.info('min_q_mvar of gen %d must be less than max_q_mvar but is not.' % i)
             if -ppc['gen'][i, 9] < -ppc['gen'][i, 8]:
-                logger.info('max_p_kw of gen %d must be less than min_p_kw but is not.' % i)
+                logger.info('max_p_mw of gen %d must be less than min_p_mw but is not.' % i)
     # unused data of ppc: Vg (partwise: in ext_grid and gen), mBase, Pc1, Pc2, Qc1min, Qc1max,
     # Qc2min, Qc2max, ramp_agc, ramp_10, ramp_30,ramp_q, apf
 
@@ -225,13 +225,13 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
                 vn_hv_kv = from_vn_kv
                 lv_bus = to_bus
                 vn_lv_kv = to_vn_kv
-                tp_side = 'hv'
+                tap_side = 'hv'
             else:
                 hv_bus = to_bus
                 vn_hv_kv = to_vn_kv
                 lv_bus = from_bus
                 vn_lv_kv = from_vn_kv
-                tp_side = 'lv'
+                tap_side = 'lv'
                 if from_vn_kv == to_vn_kv:
                     logger.warning('The pypower branch %d (from_bus, to_bus)=(%d, %d) is considered'
                                    ' as a transformer because of a ratio != 0 | 1 but it connects '
@@ -240,26 +240,26 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
             rk = ppc['branch'][i, 2]
             xk = ppc['branch'][i, 3]
             zk = (rk ** 2 + xk ** 2) ** 0.5
-            sn = ppc['branch'][i, 5] * 1e3
+            sn = ppc['branch'][i, 5]
             if sn == 0.0:
                 sn = MAX_VAL
                 logger.debug("ppc branch rateA is zero -> Using MAX_VAL instead to calculate " +
                              "apparent power")
             ratio_1 = 0 if ppc['branch'][i, 8] == 0 else (ppc['branch'][i, 8] - 1) * 100
-            i0_percent = -ppc['branch'][i, 4] * 100 * baseMVA * 1e3 / sn
+            i0_percent = -ppc['branch'][i, 4] * 100 * baseMVA / sn
             if i0_percent < 0:
                 logger.info('A transformer always behaves inductive consumpting but the '
                             'susceptance of pypower branch %d (from_bus, to_bus)=(%d, %d) is '
                             'positive.', i, ppc['branch'][i, 0], ppc['branch'][i, 1])
 
             pp.create_transformer_from_parameters(
-                net, hv_bus=hv_bus, lv_bus=lv_bus, sn_kva=sn, vn_hv_kv=vn_hv_kv,
-                vn_lv_kv=vn_lv_kv, vsc_percent=sign(xk) * zk * sn / 1e3 * 100 / baseMVA,
-                vscr_percent=rk * sn / 1e3 * 100 / baseMVA, max_loading_percent=100,
+                net, hv_bus=hv_bus, lv_bus=lv_bus, sn_mva=sn, vn_hv_kv=vn_hv_kv,
+                vn_lv_kv=vn_lv_kv, vk_percent=sign(xk) * zk * sn * 100 / baseMVA,
+                vkr_percent=rk * sn * 100 / baseMVA, max_loading_percent=100,
                 pfe_kw=0, i0_percent=i0_percent, shift_degree=ppc['branch'][i, 9],
-                tp_st_percent=abs(ratio_1) if ratio_1 else nan,
-                tp_pos=sign(ratio_1) if ratio_1 else nan,
-                tp_side=tp_side if ratio_1 else None, tp_mid=0 if ratio_1 else nan)
+                tap_step_percent=abs(ratio_1) if ratio_1 else nan,
+                tap_pos=sign(ratio_1) if ratio_1 else nan,
+                tap_side=tap_side if ratio_1 else None, tap_neutral=0 if ratio_1 else nan)
     # unused data of ppc: rateB, rateC
 
     # --- gencost -> create polynomial_cost, piecewise_cost
@@ -292,8 +292,8 @@ def from_ppc(ppc, f_hz=50, validate_conversion=False, **kwargs):
 
 
 def _validate_diff_res(diff_res, max_diff_values):
-    to_iterate = set(max_diff_values.keys()) & {'gen_q_kvar', 'branch_p_kw', 'branch_q_kvar',
-                                                'gen_p_kw', 'bus_va_degree', 'bus_vm_pu'}
+    to_iterate = set(max_diff_values.keys()) & {'gen_q_mvar', 'branch_p_mw', 'branch_q_mvar',
+                                                'gen_p_mw', 'bus_va_degree', 'bus_vm_pu'}
     if not len(to_iterate):
         logger.warning("There are no keys to validate.")
     val = True
@@ -307,8 +307,8 @@ def _validate_diff_res(diff_res, max_diff_values):
 
 
 def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
-    "bus_vm_pu": 1e-6, "bus_va_degree": 1e-5, "branch_p_kw": 1e-3, "branch_q_kvar": 1e-3,
-        "gen_p_kw": 1e-3, "gen_q_kvar": 1e-3}, run=True):
+    "bus_vm_pu": 1e-6, "bus_va_degree": 1e-5, "branch_p_mw": 1e-6, "branch_q_mvar": 1e-6,
+        "gen_p_mw": 1e-6, "gen_q_mvar": 1e-6}, run=True):
     """
     This function validates the pypower case files to pandapower net structure conversion via a \
     comparison of loadflow calculation results. (Hence the opf cost conversion is not validated.)
@@ -326,7 +326,7 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
             "rundcpp", "runopp", "rundcopp")
 
         **max_diff_values** - Dict of maximal allowed difference values. The keys must be
-        'vm_pu', 'va_degree', 'p_branch_kw', 'q_branch_kvar', 'p_gen_kw' and 'q_gen_kvar' and
+        'vm_pu', 'va_degree', 'p_branch_mw', 'q_branch_mvar', 'p_gen_mw' and 'q_gen_mvar' and
         the values floats.
 
         **run** (True, bool or list of two bools) - changing the value to False avoids trying to run
@@ -482,13 +482,13 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
             last_same_bus_in_service_gen_idx = _gen_bus_info(ppc_net, i)
         if current_bus_type == 3 and i == first_same_bus_in_service_gen_idx:
             pp_res["gen"] = append(pp_res["gen"], array(net.res_ext_grid[
-                    net.ext_grid.bus == current_bus_idx][['p_kw', 'q_kvar']]).reshape((1, 2)), 0)
+                    net.ext_grid.bus == current_bus_idx][['p_mw', 'q_mvar']]).reshape((1, 2)), 0)
         elif current_bus_type == 2 and i == first_same_bus_in_service_gen_idx:
             pp_res["gen"] = append(pp_res["gen"], array(net.res_gen[
-                    net.gen.bus == current_bus_idx][['p_kw', 'q_kvar']]).reshape((1, 2)), 0)
+                    net.gen.bus == current_bus_idx][['p_mw', 'q_mvar']]).reshape((1, 2)), 0)
         else:
             pp_res["gen"] = append(pp_res["gen"], array(net.res_sgen[
-                net.sgen.bus == current_bus_idx][['p_kw', 'q_kvar']])[
+                net.sgen.bus == current_bus_idx][['p_mw', 'q_mvar']])[
                 already_used_gen.at[int(j)]].reshape((1, 2)), 0)
             already_used_gen.at[int(j)] += 1
             change_q_compare += [int(j)]
@@ -530,7 +530,7 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
             pp_res["branch"] = append(pp_res["branch"], array(net.res_line[
                 (net.line.from_bus == from_bus) &
                 (net.line.to_bus == to_bus)]
-                [['p_from_kw', 'q_from_kvar', 'p_to_kw', 'q_to_kvar']])[
+                [['p_from_mw', 'q_from_mvar', 'p_to_mw', 'q_to_mvar']])[
                 int(already_used_branches.number.loc[
                    (already_used_branches.from_bus == from_bus) &
                    (already_used_branches.to_bus == to_bus)].values)].reshape(1, 4), 0)
@@ -542,7 +542,7 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
                 pp_res["branch"] = append(pp_res["branch"], array(net.res_trafo[
                     (net.trafo.hv_bus == from_bus) &
                     (net.trafo.lv_bus == to_bus)]
-                    [['p_hv_kw', 'q_hv_kvar', 'p_lv_kw', 'q_lv_kvar']])[
+                    [['p_hv_mw', 'q_hv_mvar', 'p_lv_mw', 'q_lv_mvar']])[
                     int(already_used_branches.number.loc[
                         (already_used_branches.hv_bus == from_bus) &
                         (already_used_branches.lv_bus == to_bus)].values)].reshape(1, 4), 0)
@@ -552,7 +552,7 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
                 pp_res["branch"] = append(pp_res["branch"], array(net.res_trafo[
                     (net.trafo.hv_bus == to_bus) &
                     (net.trafo.lv_bus == from_bus)]
-                    [['p_lv_kw', 'q_lv_kvar', 'p_hv_kw', 'q_hv_kvar']])[
+                    [['p_lv_mw', 'q_lv_mvar', 'p_hv_mw', 'q_hv_mvar']])[
                     int(already_used_branches.number.loc[
                         (already_used_branches.hv_bus == to_bus) &
                         (already_used_branches.lv_bus == from_bus)].values)].reshape(1, 4), 0)
@@ -565,8 +565,8 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
     diff_res = dict.fromkeys(ppc_elms)
     diff_res["bus"] = ppc_res["bus"] - pp_res["bus"]
     diff_res["bus"][:, 1] -= diff_res["bus"][0, 1]  # remove va_degree offset
-    diff_res["branch"] = ppc_res["branch"] - pp_res["branch"] * 1e-3
-    diff_res["gen"] = ppc_res["gen"] - pp_res["gen"] * 1e-3
+    diff_res["branch"] = ppc_res["branch"] - pp_res["branch"]
+    diff_res["gen"] = ppc_res["gen"] - pp_res["gen"]
     # comparison of buses with several generator units only as q sum
     for i in GEN_uniq.loc[GEN_uniq[0].isin(change_q_compare)].index:
         next_is = GEN_uniq.index[GEN_uniq.index > i]
@@ -584,13 +584,13 @@ def validate_from_ppc(ppc_net, net, pf_type="runpp", max_diff_values={
     logger.debug("Maximum branch flow active power difference between pypower and pandapower: "
                  "%.2e kW" % max_(abs(diff_res["branch"][:, [0, 2]] * 1e3)))
     logger.debug("Maximum branch flow reactive power difference between pypower and "
-                 "pandapower: %.2e kVAr" % max_(abs(diff_res["branch"][:, [1, 3]] * 1e3)))
+                 "pandapower: %.2e MVAr" % max_(abs(diff_res["branch"][:, [1, 3]])))
     logger.debug("Maximum active power generation difference between pypower and pandapower: "
-                 "%.2e kW" % max_(abs(diff_res["gen"][:, 0] * 1e3)))
+                 "%.2e MW" % max_(abs(diff_res["gen"][:, 0])))
     logger.debug("Maximum reactive power generation difference between pypower and pandapower: "
                  "%.2e kVAr" % max_(abs(diff_res["gen"][:, 1] * 1e3)))
-    if _validate_diff_res(diff_res, {"bus_vm_pu": 1e-3, "bus_va_degree": 1e-3, "branch_p_kw": 1e-3,
-                                     "branch_q_kvar": 1e-3}) and \
+    if _validate_diff_res(diff_res, {"bus_vm_pu": 1e-3, "bus_va_degree": 1e-3, "branch_p_mw": 1e-6,
+                                     "branch_q_mvar": 1e-6}) and \
             (max_(abs(diff_res["gen"])) > 1e-1).any():
         logger.debug("The active/reactive power generation difference possibly results "
                      "because of a pypower error. Please validate "

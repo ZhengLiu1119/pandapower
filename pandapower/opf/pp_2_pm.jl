@@ -1,5 +1,7 @@
-using PowerModels
-using Ipopt
+
+module PP2PM
+export load_pm_from_json
+
 import JSON
 
 function load_pm_from_json(json_path)
@@ -16,10 +18,4 @@ function load_pm_from_json(json_path)
     return pm
 end
 
-function run_powermodels(json_path)
-    pm = load_pm_from_json(json_path)
-    result = PowerModels.run_ac_opf(pm, Ipopt.IpoptSolver())
-    return result
 end
-
-#pm = load_pm_from_json("C:\\Users\\thurner\\AppData\\Local\\Temp\\pp_pm.json")
