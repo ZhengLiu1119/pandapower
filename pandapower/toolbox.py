@@ -1282,7 +1282,7 @@ def element_bus_tuples(bus_elements=True, branch_elements=True, res_elements=Fal
                      ("trafo", "lv_bus"), ("trafo3w", "hv_bus"), ("trafo3w", "mv_bus"),
                      ("trafo3w", "lv_bus"), ("dcline", "from_bus"), ("dcline", "to_bus")])
     if res_elements:
-        elements_without_res = ["switch", "measurement"]
+        elements_without_res = ["switch", "measurement", "trafo", "trafo3w", "shunt"]  # orig: ["switch", "measurement"]
         ebts.update(
             [("res_" + ebt[0], ebt[1]) for ebt in ebts if ebt[0] not in elements_without_res])
     return ebts
