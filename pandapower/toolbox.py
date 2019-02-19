@@ -1129,6 +1129,7 @@ def create_continuous_elements_index(net, start=0, add_df_to_reindex=set()):
     
     INPUT:
       **net** - pandapower network with unodered indices 
+      
     OPTIONAL:
       **start** - index begins with "start"  
         
@@ -1136,6 +1137,7 @@ def create_continuous_elements_index(net, start=0, add_df_to_reindex=set()):
                               power flow will be selected. Additionally elements,
                               like line_geodata and bus_geodata, also can be here 
                               considered. 
+                              
     OUTPUT:
       **net** - pandapower network with odered and continuous indices
     
@@ -1282,7 +1284,7 @@ def element_bus_tuples(bus_elements=True, branch_elements=True, res_elements=Fal
                      ("trafo", "lv_bus"), ("trafo3w", "hv_bus"), ("trafo3w", "mv_bus"),
                      ("trafo3w", "lv_bus"), ("dcline", "from_bus"), ("dcline", "to_bus")])
     if res_elements:
-        elements_without_res = ["switch", "measurement", "trafo", "trafo3w", "shunt"]  # orig: ["switch", "measurement"]
+        elements_without_res = ["switch", "measurement"]
         ebts.update(
             [("res_" + ebt[0], ebt[1]) for ebt in ebts if ebt[0] not in elements_without_res])
     return ebts
@@ -1379,9 +1381,11 @@ def drop_duplicated_measurements(net, buses=None, keep="first"):
     bus_meas = net.measurement.loc[net.measurement.element_type == "bus"]
     analyzed_meas = bus_meas.loc[net.measurement.element.isin(buses).fillna("nan")]
     # drop duplicates
-    idx_to_drop = analyzed_meas.index[analyzed_meas.duplicated(subset=[
-        "measurement_type", "element_type", "side", "element"], keep=keep)]
-    net.measurement.drop(idx_to_drop, inplace=True)
+    if not analyzed_meas.duplicated(subset=[
+        "measurement_type", "element_type", "side", "element"], keep=keep).empty:
+        idx_to_drop = analyzed_meas.index[analyzed_meas.duplicated(subset=[
+            "measurement_type", "element_type", "side", "element"], keep=keep)]
+        net.measurement.drop(idx_to_drop, inplace=True)
 
 
 def fuse_buses(net, b1, b2, drop=True):
